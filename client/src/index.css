@@ -1,0 +1,16 @@
+
+
+/* src/index.css ou App.css */
+.card {
+  transition: all 0.2s ease;
+  border-radius: 12px;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+}
+
+h2, h4 {
+  font-weight: 600;
+}

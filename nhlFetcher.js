@@ -3,6 +3,41 @@ const axios = require("axios");
 const mongoose = require("mongoose");
 const Match = require("./models/Match");
 
+
+const NHL_TEAMS = [
+  { name: "Anaheim Ducks", abbr: "ANA" },
+  { name: "Boston Bruins", abbr: "BOS" },
+  { name: "Buffalo Sabres", abbr: "BUF" },
+  { name: "Calgary Flames", abbr: "CGY" },
+  { name: "Carolina Hurricanes", abbr: "CAR" },
+  { name: "Chicago Blackhawks", abbr: "CHI" },
+  { name: "Colorado Avalanche", abbr: "COL" },
+  { name: "Columbus Blue Jackets", abbr: "CBJ" },
+  { name: "Dallas Stars", abbr: "DAL" },
+  { name: "Detroit Red Wings", abbr: "DET" },
+  { name: "Edmonton Oilers", abbr: "EDM" },
+  { name: "Florida Panthers", abbr: "FLA" },
+  { name: "Los Angeles Kings", abbr: "LAK" },
+  { name: "Minnesota Wild", abbr: "MIN" },
+  { name: "Montréal Canadiens", abbr: "MTL" },
+  { name: "Nashville Predators", abbr: "NSH" },
+  { name: "New Jersey Devils", abbr: "NJD" },
+  { name: "New York Islanders", abbr: "NYI" },
+  { name: "New York Rangers", abbr: "NYR" },
+  { name: "Ottawa Senators", abbr: "OTT" },
+  { name: "Philadelphia Flyers", abbr: "PHI" },
+  { name: "Pittsburgh Penguins", abbr: "PIT" },
+  { name: "San Jose Sharks", abbr: "SJS" },
+  { name: "Seattle Kraken", abbr: "SEA" },
+  { name: "St. Louis Blues", abbr: "STL" },
+  { name: "Tampa Bay Lightning", abbr: "TBL" },
+  { name: "Toronto Maple Leafs", abbr: "TOR" },
+  { name: "Utah Hockey Club", abbr: "UHC" }, // ✅ Ex-Arizona Coyotes
+  { name: "Vancouver Canucks", abbr: "VAN" },
+  { name: "Vegas Golden Knights", abbr: "VGK" },
+  { name: "Washington Capitals", abbr: "WSH" },
+  { name: "Winnipeg Jets", abbr: "WPG" }
+];
 // Constantes pour les états de jeux
 const FINAL_GAME_STATES = ["FINAL", "OFFICIAL", "OFF", "7", "F"];
 
@@ -422,5 +457,6 @@ module.exports = {
   getLastFinalGames,
   analyzeAPIResponse,
   getScorersFromGame,
-  getBoxscore
+  getBoxscore,
+  NHL_TEAMS
 };
