@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import {
   Container,
@@ -19,6 +19,17 @@ const HeadToHead = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [teams, setTeams] = useState([]);
+
+  useEffect(() => {
+    axios
+      .get("/api/teams")
+      .then((res) => setTeams(res.data || []))
+      .catch((err) => {
+        console.error("❌ Erreur chargement équipes :", err);
+        setError("Impossible de charger la liste des équipes.");
+      });
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,36 +46,27 @@ const HeadToHead = () => {
       const res = await axios.post("/api/head-to-head", { teamA, teamB });
       setData(res.data);
     } catch (err) {
+      console.error("❌ Erreur confrontation :", err);
       setError("Impossible de récupérer les données de confrontation.");
-      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const allTeams = [
-    "Colorado Avalanche",
-    "Dallas Stars",
-    "Minnesota Wild",
-    "Calgary Flames",
-    "Philadelphia Flyers",
-    "Seattle Kraken",
-    "Nashville Predators",
-    "New Jersey Devils",
-    // ajoute les autres équipes ici...
-  ];
-
   return (
     <Container className="my-5">
-      <h2 className="mb-4">⚔️ Confrontation entre deux équipes</h2>
+      <h2 className="mb-4 text-center">⚔️ Confrontation entre deux équipes</h2>
 
       <Form onSubmit={handleSubmit} className="mb-4">
         <Row className="align-items-end">
           <Col md={5}>
             <Form.Label>Équipe A</Form.Label>
-            <Form.Select value={teamA} onChange={(e) => setTeamA(e.target.value)}>
+            <Form.Select
+              value={teamA}
+              onChange={(e) => setTeamA(e.target.value)}
+            >
               <option value="">Choisissez l'équipe A</option>
-              {allTeams.map((team, idx) => (
+              {teams.map((team, idx) => (
                 <option key={idx} value={team}>
                   {team}
                 </option>
@@ -73,9 +75,12 @@ const HeadToHead = () => {
           </Col>
           <Col md={5}>
             <Form.Label>Équipe B</Form.Label>
-            <Form.Select value={teamB} onChange={(e) => setTeamB(e.target.value)}>
+            <Form.Select
+              value={teamB}
+              onChange={(e) => setTeamB(e.target.value)}
+            >
               <option value="">Choisissez l'équipe B</option>
-              {allTeams.map((team, idx) => (
+              {teams.map((team, idx) => (
                 <option key={idx} value={team}>
                   {team}
                 </option>
@@ -112,10 +117,20 @@ const HeadToHead = () => {
                 Statistiques Globales
               </Card.Title>
               <Row>
-                <Col><strong>{data.stats.teamA} :</strong> {data.stats.teamAWins} victoires</Col>
-                <Col><strong>{data.stats.teamB} :</strong> {data.stats.teamBWins} victoires</Col>
-                <Col><strong>Matchs nuls :</strong> {data.stats.draws}</Col>
-                <Col><strong>Moyenne de buts :</strong> {data.stats.avgGoalsPerMatch}</Col>
+                <Col>
+                  <strong>{data.stats.teamA} :</strong>{" "}
+                  {data.stats.teamAWins} victoires
+                </Col>
+                <Col>
+                  <strong>{data.stats.teamB} :</strong>{" "}
+                  {data.stats.teamBWins} victoires
+                </Col>
+                <Col>
+                  <strong>Matchs nuls :</strong> {data.stats.draws}
+                </Col>
+                <Col>
+                  <strong>Moy. buts :</strong> {data.stats.avgGoalsPerMatch}
+                </Col>
               </Row>
             </Card.Body>
           </Card>
@@ -134,9 +149,13 @@ const HeadToHead = () => {
               {data.history.map((m, idx) => (
                 <tr key={idx}>
                   <td>{new Date(m.date).toLocaleDateString("fr-FR")}</td>
-                  <td>{m.awayTeam} @ {m.homeTeam}</td>
+                  <td>
+                    {m.awayTeam} @ {m.homeTeam}
+                  </td>
                   <td>{m.score}</td>
-                  <td><strong>{m.result}</strong></td>
+                  <td>
+                    <strong>{m.result}</strong>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -153,7 +172,8 @@ const HeadToHead = () => {
                   <ul className="ps-3 mb-0">
                     {data.topScorers.map((s, idx) => (
                       <li key={idx}>
-                        {s.name} — {s.goals} buts, {s.assists} passes en {s.matches} matchs
+                        {s.name} — {s.goals} buts, {s.assists} passes en{" "}
+                        {s.matches} matchs
                       </li>
                     ))}
                   </ul>
