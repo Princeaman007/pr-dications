@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Container,
@@ -7,28 +8,61 @@ import {
   Card,
   Spinner,
   Alert,
+  Badge,
+  Tab,
+  Nav,
+  Button
 } from "react-bootstrap";
 import {
   FaClock,
-  FaChartBar,
-  FaUserFriends,
   FaSkating,
   FaExclamationTriangle,
+  FaCalendarAlt
 } from "react-icons/fa";
+
+const CACHE_KEY = "upcoming_predictions_cache";
+const CACHE_TIME_KEY = "upcoming_predictions_cache_time";
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 const UpcomingPredictions = () => {
   const [gamesByDate, setGamesByDate] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchPredictions = async () => {
+      setLoading(true);
+      setError(null);
+
+      const cached = localStorage.getItem(CACHE_KEY);
+      const cachedTime = localStorage.getItem(CACHE_TIME_KEY);
+      const now = Date.now();
+
+      if (cached && cachedTime && now - parseInt(cachedTime, 10) < CACHE_TTL) {
+        setGamesByDate(JSON.parse(cached));
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await axios.get("/api/upcoming-predictions");
-        setGamesByDate(res.data || {});
+        if (res.data && typeof res.data === "object") {
+          setGamesByDate(res.data);
+          localStorage.setItem(CACHE_KEY, JSON.stringify(res.data));
+          localStorage.setItem(CACHE_TIME_KEY, now.toString());
+        } else {
+          setError("Format de données invalide reçu du serveur.");
+        }
       } catch (err) {
-        console.error("Erreur de récupération des prédictions :", err);
-        setError("Impossible de charger les prédictions.");
+        console.error("Erreur de récupération des prédictions:", err);
+        if (err.response) {
+          setError(`Erreur serveur: ${err.response.status}`);
+        } else if (err.request) {
+          setError("Pas de réponse du serveur.");
+        } else {
+          setError(`Erreur: ${err.message}`);
+        }
       } finally {
         setLoading(false);
       }
@@ -37,11 +71,33 @@ const UpcomingPredictions = () => {
     fetchPredictions();
   }, []);
 
+  const sortedDates = useMemo(() => {
+    if (!gamesByDate) return [];
+    return Object.keys(gamesByDate).sort((a, b) => {
+      const [dA, mA, yA] = a.split("/").map(Number);
+      const [dB, mB, yB] = b.split("/").map(Number);
+      return new Date(`${yA}-${mA}-${dA}`) - new Date(`${yB}-${mB}-${dB}`);
+    });
+  }, [gamesByDate]);
+
+  const formatDate = (str) => {
+    try {
+      const [d, m, y] = str.split("/");
+      return new Date(`${y}-${m}-${d}`).toLocaleDateString("fr-FR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long"
+      });
+    } catch {
+      return str;
+    }
+  };
+
   if (loading) {
     return (
-      <Container className="d-flex flex-column justify-content-center align-items-center my-5">
-        <Spinner animation="border" variant="primary" />
-        <p className="mt-3 text-muted">Chargement des prédictions en cours...</p>
+      <Container className="my-5 text-center">
+        <Spinner animation="border" />
+        <p className="mt-3">Chargement des prédictions...</p>
       </Container>
     );
   }
@@ -57,104 +113,101 @@ const UpcomingPredictions = () => {
     );
   }
 
-  if (Object.keys(gamesByDate).length === 0) {
+  if (sortedDates.length === 0) {
     return (
       <Container className="my-5">
         <Alert variant="info" className="text-center">
-          Aucun match à venir pour le moment.
+          <FaCalendarAlt className="me-2" />
+          Aucun match à venir.
         </Alert>
       </Container>
     );
   }
 
   return (
-    <Container className="my-5" style={{ maxWidth: "1200px" }}>
-      <h2 className="text-center mb-5">🔮 Prédictions des matchs à venir</h2>
+    <Container className="my-5">
+      <h2 className="text-center mb-4">🔮 Prédictions des matchs à venir</h2>
 
-      {Object.keys(gamesByDate).sort().map((date) => (
-        <div key={date} className="mb-5">
-          <h4 className="text-center text-primary mb-4">📅 {date}</h4>
+      <Tab.Container defaultActiveKey={sortedDates[0]}>
+        <Nav variant="tabs" className="mb-4 flex-nowrap overflow-auto">
+          {sortedDates.map((date) => (
+            <Nav.Item key={date}>
+              <Nav.Link eventKey={date} className="px-3">
+                <FaCalendarAlt className="me-1" />
+                {formatDate(date)}
+              </Nav.Link>
+            </Nav.Item>
+          ))}
+        </Nav>
 
-          <Row className="justify-content-center">
-            {gamesByDate[date].map((game, i) => (
-              <Col
-                key={i}
-                xs={12}
-                sm={10}
-                md={6}
-                lg={4}
-                className="d-flex align-items-stretch mb-4"
-              >
-                <Card className="shadow-lg w-100 border-0">
-                  <Card.Body className="d-flex flex-column">
-                    <Card.Title className="mb-3 text-dark">
-                      <FaClock className="me-2 text-secondary" />
-                      <strong>{game.time}</strong> — {game.away} @ {game.home}
-                    </Card.Title>
-
-                    {game.prediction ? (
-                      <>
-                        <div className="text-muted mb-2">
-                          {game.prediction.source === "individual" ? (
-                            <>
-                              <FaChartBar className="me-1" />
-                              Basé sur forme récente ({game.prediction.matchCount} matchs) :
-                              <br />
-                              {game.home} {game.prediction.teamAGoals} - {game.prediction.teamBGoals} {game.away}
-                            </>
-                          ) : (
-                            <>
-                              <FaChartBar className="me-1" />
-                              Historique direct ({game.prediction.matchCount} matchs) :
-                              <br />
-                              {game.home} {game.prediction.teamAGoals} - {game.prediction.teamBGoals} {game.away}
-                            </>
-                          )}
+        <Tab.Content>
+          {sortedDates.map((date) => (
+            <Tab.Pane key={date} eventKey={date}>
+              <Row>
+                {gamesByDate[date].map((game, i) => (
+                  <Col key={i} md={6} lg={4} className="mb-4">
+                    <Card className="h-100 shadow-sm border-0">
+                      <Card.Header className="text-center">
+                        <Badge bg="light" text="dark">{game.away}</Badge> @
+                        <Badge bg="light" text="dark">{game.home}</Badge>
+                        <div className="mt-2 text-muted">
+                          <FaClock className="me-1" />
+                          {game.time || "TBD"}
                         </div>
-
-                        {game.prediction.sortedScorers?.length > 0 ? (
+                      </Card.Header>
+                      <Card.Body className="d-flex flex-column">
+                        {game.prediction ? (
                           <>
-                            <strong className="d-block mb-2">🎯 Buteurs probables :</strong>
-                            <ul className="ps-3 mb-2">
-                              {game.prediction.sortedScorers.map((p, idx) => (
-                                <li key={idx} className="mb-1">
-                                  <FaSkating className="me-1 text-info" />
-                                  <strong>{p.name}</strong> — {p.goals} buts, {p.assists} passes ({p.efficiency?.toFixed(2)} but/match)
-                                </li>
-                              ))}
-                            </ul>
+                            <div className="text-center mb-3">
+                              <strong>Score estimé:</strong>
+                              <div>
+                                {game.prediction.teamAGoals} - {game.prediction.teamBGoals}
+                              </div>
+                            </div>
+                            {game.prediction.sortedScorers?.length > 0 && (
+                              <div className="mt-3">
+                                <h6>
+                                  <FaSkating className="me-2 text-info" /> Buteurs clés:
+                                </h6>
+                                <ul className="mb-0">
+                                  {game.prediction.sortedScorers.slice(0, 2).map((p, idx) => (
+                                    <li key={idx}>
+                                      {p.name} - {p.goals} buts, {p.assists} passes
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            <div className="mt-auto pt-3">
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                className="w-100"
+                                onClick={() =>
+                                  navigate(
+                                    `/head-to-head/${encodeURIComponent(game.home)}/${encodeURIComponent(game.away)}`
+                                  )
+                                }
+                              >
+                                Voir la confrontation
+                              </Button>
+                            </div>
                           </>
                         ) : (
-                          <div className="text-warning">
-                            <FaExclamationTriangle className="me-1" />
-                            Aucun buteur identifié
+                          <div className="text-danger text-center">
+                            <FaExclamationTriangle className="me-2" />
+                            Aucune prédiction disponible.
                           </div>
                         )}
-
-                        {game.prediction.topSynergy?.length > 0 && (
-                          <div className="mt-auto pt-2 text-success">
-                            <FaUserFriends className="me-1" />
-                            Duo :{" "}
-                            <strong>
-                              {game.prediction.topSynergy[0].pair.join(" + ")}
-                            </strong>{" "}
-                            — {game.prediction.topSynergy[0].matchesTogether} matchs ensemble
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-danger mt-auto">
-                        <FaExclamationTriangle className="me-1" />
-                        Aucune donnée historique disponible
-                      </div>
-                    )}
-                  </Card.Body>
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        </div>
-      ))}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </Tab.Pane>
+          ))}
+        </Tab.Content>
+      </Tab.Container>
     </Container>
   );
 };

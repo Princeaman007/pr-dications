@@ -4,7 +4,10 @@ const router = express.Router();
 const Match = require("../models/Match");
 
 // 🔧 Fonction utilitaire
-const normalizeTeamName = (name) => name.trim().replace(/\s+/g, ' ');
+const normalizeTeamName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  return name.trim().replace(/\s+/g, ' ');
+};
 
 router.post("/", async (req, res) => {
   const { teamA, teamB } = req.body;
@@ -15,6 +18,10 @@ router.post("/", async (req, res) => {
 
   const teamANormalized = normalizeTeamName(teamA);
   const teamBNormalized = normalizeTeamName(teamB);
+
+  if (teamANormalized === '' || teamBNormalized === '') {
+    return res.status(400).json({ error: "Les noms d'équipes ne peuvent pas être vides après normalisation." });
+  }
 
   try {
     const matches = await Match.find({
@@ -30,7 +37,7 @@ router.post("/", async (req, res) => {
       ]
     }).sort({ date: 1 });
 
-    if (!matches.length) {
+    if (!matches || !matches.length) {
       return res.status(404).json({ message: "Aucune confrontation trouvée." });
     }
 
@@ -43,18 +50,25 @@ router.post("/", async (req, res) => {
     const history = [];
 
     matches.forEach(match => {
-      const isTeamAHome = match.homeTeam.includes(teamANormalized);
-      const teamAScore = isTeamAHome ? match.homeScore : match.awayScore;
-      const teamBScore = isTeamAHome ? match.awayScore : match.homeScore;
+      // Vérifier les valeurs nulles/undefined pour les scores
+      const homeScore = match.homeScore ?? 0;
+      const awayScore = match.awayScore ?? 0;
+      
+      // Détecter quelle équipe est à domicile en utilisant une méthode plus robuste
+      const homeTeamLower = match.homeTeam.toLowerCase();
+      const isTeamAHome = homeTeamLower.includes(teamANormalized.toLowerCase());
+      
+      const teamAScore = isTeamAHome ? homeScore : awayScore;
+      const teamBScore = isTeamAHome ? awayScore : homeScore;
 
       history.push({
         date: match.date,
         homeTeam: match.homeTeam,
         awayTeam: match.awayTeam,
-        score: `${match.homeScore}-${match.awayScore}`,
+        score: `${homeScore}-${awayScore}`,
         result:
           teamAScore > teamBScore ? teamANormalized :
-          teamBScore > teamAScore ? teamBNormalized : "Draw"
+          teamBScore > teamAScore ? teamBNormalized : "Match nul"
       });
 
       teamAGoals += teamAScore;
@@ -70,28 +84,33 @@ router.post("/", async (req, res) => {
     const duoStats = {};
 
     for (const match of matches) {
-      if (!match.scorers || !match.scorers.length) continue;
+      if (!match.scorers || !Array.isArray(match.scorers) || !match.scorers.length) continue;
 
       const participants = new Map();
 
       for (const s of match.scorers) {
-        if (!s.name || typeof s.name !== 'string') continue;
+        if (!s || !s.name || typeof s.name !== 'string') continue;
         const name = s.name.trim();
+        if (name === '') continue;
 
         if (!scorersStats[name]) {
           scorersStats[name] = { goals: 0, assists: 0, matches: 0 };
         }
 
-        scorersStats[name].goals += s.goals || 0;
-        scorersStats[name].assists += s.assists || 0;
+        const goals = s.goals && typeof s.goals === 'number' ? s.goals : 0;
+        const assists = s.assists && typeof s.assists === 'number' ? s.assists : 0;
+
+        scorersStats[name].goals += goals;
+        scorersStats[name].assists += assists;
         scorersStats[name].matches += 1;
 
         participants.set(name, {
-          goals: s.goals || 0,
-          assists: s.assists || 0
+          goals: goals,
+          assists: assists
         });
       }
 
+      // Calcul des duos
       for (const [player1, stats1] of participants.entries()) {
         if (stats1.goals > 0) {
           for (const [player2, stats2] of participants.entries()) {
@@ -118,17 +137,23 @@ router.post("/", async (req, res) => {
       .slice(0, 5)
       .map(([duo, data]) => ({ duo, ...data }));
 
+    const totalMatches = matches.length;
+    const avgGoalsPerMatch = totalMatches > 0 
+      ? ((teamAGoals + teamBGoals) / totalMatches).toFixed(2) 
+      : "0.00";
+
     return res.json({
       history,
       stats: {
         teamA: teamANormalized,
         teamB: teamBNormalized,
+        totalMatches,
         teamAWins,
         teamBWins,
         draws,
         teamAGoals,
         teamBGoals,
-        avgGoalsPerMatch: ((teamAGoals + teamBGoals) / matches.length).toFixed(2)
+        avgGoalsPerMatch
       },
       topScorers,
       topDuos

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useParams } from "react-router-dom";
 import axios from "axios";
 import {
   Container,
@@ -10,52 +11,126 @@ import {
   Spinner,
   Alert,
   Table,
+  Badge,
 } from "react-bootstrap";
-import { FaSearch, FaSkating, FaUserFriends, FaChartBar } from "react-icons/fa";
+import {
+  FaSearch,
+  FaSkating,
+  FaUserFriends,
+  FaChartBar,
+  FaTrophy,
+  FaEquals,
+} from "react-icons/fa";
 
 const HeadToHead = () => {
   const [teamA, setTeamA] = useState("");
   const [teamB, setTeamB] = useState("");
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [teams, setTeams] = useState([]);
 
+  const { teamA: paramTeamA, teamB: paramTeamB } = useParams();
+
+  // 🔁 Chargement des équipes
   useEffect(() => {
-    axios
-      .get("/api/teams")
-      .then((res) => setTeams(res.data || []))
-      .catch((err) => {
-        console.error("❌ Erreur chargement équipes :", err);
+    const fetchTeams = async () => {
+      try {
+        const res = await axios.get("/api/teams");
+        if (res.data && Array.isArray(res.data)) {
+          const sortedTeams = [...res.data].sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: "base" })
+          );
+          setTeams(sortedTeams);
+        } else {
+          setError("Format de données des équipes invalide.");
+        }
+      } catch (err) {
+        console.error("Erreur chargement équipes:", err);
         setError("Impossible de charger la liste des équipes.");
-      });
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    fetchTeams();
   }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!teamA || !teamB || teamA === teamB) {
-      setError("Veuillez choisir deux équipes différentes.");
-      return;
+  // ⚙️ Met à jour les équipes depuis les paramètres URL
+  useEffect(() => {
+    if (paramTeamA && paramTeamB) {
+      setTeamA(decodeURIComponent(paramTeamA));
+      setTeamB(decodeURIComponent(paramTeamB));
     }
+  }, [paramTeamA, paramTeamB]);
 
-    setLoading(true);
-    setError(null);
-    setData(null);
+  // 📡 Lancement auto de la requête une fois les deux équipes définies
+  useEffect(() => {
+    if (teamA && teamB) {
+      handleSubmit({ preventDefault: () => {} });
+    }
+  }, [teamA, teamB]);
 
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+
+      if (!teamA || !teamB) {
+        setError("Veuillez sélectionner les deux équipes.");
+        return;
+      }
+
+      if (teamA === teamB) {
+        setError("Veuillez choisir deux équipes différentes.");
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      setData(null);
+
+      try {
+        const res = await axios.post("/api/head-to-head", { teamA, teamB });
+        if (res.data) {
+          setData(res.data);
+        } else {
+          setError("Aucune donnée reçue du serveur.");
+        }
+      } catch (err) {
+        console.error("Erreur confrontation:", err);
+        if (err.response) {
+          switch (err.response.status) {
+            case 400:
+              setError("Requête invalide. Vérifiez les noms d'équipes.");
+              break;
+            case 404:
+              setError(`Aucune confrontation trouvée entre ${teamA} et ${teamB}.`);
+              break;
+            default:
+              setError(`Erreur serveur: ${err.response.status}`);
+          }
+        } else {
+          setError("Erreur réseau ou serveur non joignable.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [teamA, teamB]
+  );
+
+  const formatDate = (dateString) => {
     try {
-      const res = await axios.post("/api/head-to-head", { teamA, teamB });
-      setData(res.data);
-    } catch (err) {
-      console.error("❌ Erreur confrontation :", err);
-      setError("Impossible de récupérer les données de confrontation.");
-    } finally {
-      setLoading(false);
+      return new Date(dateString).toLocaleDateString("fr-FR");
+    } catch {
+      return dateString;
     }
   };
 
   return (
     <Container className="my-5">
-      <h2 className="mb-4 text-center">⚔️ Confrontation entre deux équipes</h2>
+      <h2 className="text-center mb-4">⚔️ Analyse de Confrontation</h2>
 
       <Form onSubmit={handleSubmit} className="mb-4">
         <Row className="align-items-end">
@@ -64,10 +139,11 @@ const HeadToHead = () => {
             <Form.Select
               value={teamA}
               onChange={(e) => setTeamA(e.target.value)}
+              disabled={initialLoading}
             >
               <option value="">Choisissez l'équipe A</option>
               {teams.map((team, idx) => (
-                <option key={idx} value={team}>
+                <option key={`teamA-${idx}`} value={team}>
                   {team}
                 </option>
               ))}
@@ -78,29 +154,42 @@ const HeadToHead = () => {
             <Form.Select
               value={teamB}
               onChange={(e) => setTeamB(e.target.value)}
+              disabled={initialLoading}
             >
               <option value="">Choisissez l'équipe B</option>
               {teams.map((team, idx) => (
-                <option key={idx} value={team}>
+                <option key={`teamB-${idx}`} value={team}>
                   {team}
                 </option>
               ))}
             </Form.Select>
           </Col>
           <Col md={2}>
-            <Button type="submit" className="w-100">
-              <FaSearch className="me-1" /> Comparer
+            <Button
+              type="submit"
+              className="w-100"
+              disabled={!teamA || !teamB || teamA === teamB || loading}
+            >
+              {loading ? (
+                <>
+                  <Spinner
+                    as="span"
+                    animation="border"
+                    size="sm"
+                    className="me-2"
+                  />
+                  Chargement...
+                </>
+              ) : (
+                <>
+                  <FaSearch className="me-1" />
+                  Comparer
+                </>
+              )}
             </Button>
           </Col>
         </Row>
       </Form>
-
-      {loading && (
-        <div className="text-center my-5">
-          <Spinner animation="border" />
-          <p>Chargement des données...</p>
-        </div>
-      )}
 
       {error && (
         <Alert variant="danger" className="text-center">
@@ -108,72 +197,114 @@ const HeadToHead = () => {
         </Alert>
       )}
 
+      {loading && !data && (
+        <div className="text-center my-5">
+          <Spinner animation="border" />
+          <p className="mt-3 text-muted">Chargement des données...</p>
+        </div>
+      )}
+
       {data && (
         <>
+          {/* Statistiques globales */}
           <Card className="mb-4 shadow-sm">
             <Card.Body>
               <Card.Title>
                 <FaChartBar className="me-2" />
                 Statistiques Globales
               </Card.Title>
-              <Row>
+              <Row className="text-center">
                 <Col>
-                  <strong>{data.stats.teamA} :</strong>{" "}
-                  {data.stats.teamAWins} victoires
+                  <h5>{data.stats.teamA}</h5>
+                  <p>
+                    {data.stats.teamAWins} victoire(s), {data.stats.teamAGoals} but(s)
+                  </p>
                 </Col>
                 <Col>
-                  <strong>{data.stats.teamB} :</strong>{" "}
-                  {data.stats.teamBWins} victoires
+                  <h5>Égalité</h5>
+                  <p>
+                    {data.stats.draws} nul(s), {data.stats.avgGoalsPerMatch} buts/match
+                  </p>
                 </Col>
                 <Col>
-                  <strong>Matchs nuls :</strong> {data.stats.draws}
-                </Col>
-                <Col>
-                  <strong>Moy. buts :</strong> {data.stats.avgGoalsPerMatch}
+                  <h5>{data.stats.teamB}</h5>
+                  <p>
+                    {data.stats.teamBWins} victoire(s), {data.stats.teamBGoals} but(s)
+                  </p>
                 </Col>
               </Row>
             </Card.Body>
           </Card>
 
-          <h5 className="text-primary mb-3">📆 Historique des matchs</h5>
-          <Table striped bordered hover responsive>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Match</th>
-                <th>Score</th>
-                <th>Résultat</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.history.map((m, idx) => (
-                <tr key={idx}>
-                  <td>{new Date(m.date).toLocaleDateString("fr-FR")}</td>
-                  <td>
-                    {m.awayTeam} @ {m.homeTeam}
-                  </td>
-                  <td>{m.score}</td>
-                  <td>
-                    <strong>{m.result}</strong>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          {/* Historique des matchs */}
+          <Card className="mb-4 shadow-sm">
+            <Card.Header>
+              <FaChartBar className="me-2" />
+              Historique des confrontations
+            </Card.Header>
+            <Card.Body className="p-0">
+              <Table striped responsive>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Affiche</th>
+                    <th>Score</th>
+                    <th>Résultat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.history.map((match, idx) => {
+                    const isDraw =
+                      match.result !== data.stats.teamA &&
+                      match.result !== data.stats.teamB;
 
+                    return (
+                      <tr key={idx}>
+                        <td>{formatDate(match.date)}</td>
+                        <td>
+                          {match.awayTeam} @ {match.homeTeam}
+                        </td>
+                        <td>{match.score}</td>
+                        <td>
+                          {isDraw ? (
+                            <Badge bg="secondary">
+                              <FaEquals className="me-1" />
+                              Nul
+                            </Badge>
+                          ) : (
+                            <Badge
+                              bg={
+                                match.result === data.stats.teamA
+                                  ? "primary"
+                                  : "danger"
+                              }
+                            >
+                              <FaTrophy className="me-1" />
+                              {match.result}
+                            </Badge>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </Card.Body>
+          </Card>
+
+          {/* Top buteurs et duos */}
           <Row className="mt-4">
             <Col md={6}>
-              <Card className="mb-4 shadow-sm">
+              <Card className="shadow-sm">
                 <Card.Body>
                   <Card.Title>
                     <FaSkating className="me-2" />
                     Top buteurs
                   </Card.Title>
-                  <ul className="ps-3 mb-0">
-                    {data.topScorers.map((s, idx) => (
-                      <li key={idx}>
-                        {s.name} — {s.goals} buts, {s.assists} passes en{" "}
-                        {s.matches} matchs
+                  <ul>
+                    {data.topScorers.map((s, i) => (
+                      <li key={i}>
+                        <strong>{s.name}</strong> — {s.goals} buts, {s.assists} passes
                       </li>
                     ))}
                   </ul>
@@ -181,16 +312,16 @@ const HeadToHead = () => {
               </Card>
             </Col>
             <Col md={6}>
-              <Card className="mb-4 shadow-sm">
+              <Card className="shadow-sm">
                 <Card.Body>
                   <Card.Title>
                     <FaUserFriends className="me-2" />
                     Duos efficaces
                   </Card.Title>
-                  <ul className="ps-3 mb-0">
-                    {data.topDuos.map((d, idx) => (
-                      <li key={idx}>
-                        {d.duo} — {d.goalsTogether} buts (en {d.matches} matchs)
+                  <ul>
+                    {data.topDuos.map((d, i) => (
+                      <li key={i}>
+                        <strong>{d.duo}</strong> — {d.goalsTogether} buts en {d.matches} match(s)
                       </li>
                     ))}
                   </ul>
