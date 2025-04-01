@@ -1,4 +1,3 @@
-// routes/headToHeadRoutes.js
 const express = require("express");
 const router = express.Router();
 const Match = require("../models/Match");
@@ -9,6 +8,7 @@ const normalizeTeamName = (name) => {
   return name.trim().replace(/\s+/g, ' ');
 };
 
+// ROUTE PRINCIPALE - statistiques générales
 router.post("/", async (req, res) => {
   const { teamA, teamB } = req.body;
 
@@ -50,14 +50,11 @@ router.post("/", async (req, res) => {
     const history = [];
 
     matches.forEach(match => {
-      // Vérifier les valeurs nulles/undefined pour les scores
       const homeScore = match.homeScore ?? 0;
       const awayScore = match.awayScore ?? 0;
-      
-      // Détecter quelle équipe est à domicile en utilisant une méthode plus robuste
       const homeTeamLower = match.homeTeam.toLowerCase();
       const isTeamAHome = homeTeamLower.includes(teamANormalized.toLowerCase());
-      
+
       const teamAScore = isTeamAHome ? homeScore : awayScore;
       const teamBScore = isTeamAHome ? awayScore : homeScore;
 
@@ -84,8 +81,7 @@ router.post("/", async (req, res) => {
     const duoStats = {};
 
     for (const match of matches) {
-      if (!match.scorers || !Array.isArray(match.scorers) || !match.scorers.length) continue;
-
+      if (!match.scorers || !Array.isArray(match.scorers)) continue;
       const participants = new Map();
 
       for (const s of match.scorers) {
@@ -97,20 +93,16 @@ router.post("/", async (req, res) => {
           scorersStats[name] = { goals: 0, assists: 0, matches: 0 };
         }
 
-        const goals = s.goals && typeof s.goals === 'number' ? s.goals : 0;
-        const assists = s.assists && typeof s.assists === 'number' ? s.assists : 0;
+        const goals = s.goals ?? 0;
+        const assists = s.assists ?? 0;
 
         scorersStats[name].goals += goals;
         scorersStats[name].assists += assists;
         scorersStats[name].matches += 1;
 
-        participants.set(name, {
-          goals: goals,
-          assists: assists
-        });
+        participants.set(name, { goals, assists });
       }
 
-      // Calcul des duos
       for (const [player1, stats1] of participants.entries()) {
         if (stats1.goals > 0) {
           for (const [player2, stats2] of participants.entries()) {
@@ -138,8 +130,8 @@ router.post("/", async (req, res) => {
       .map(([duo, data]) => ({ duo, ...data }));
 
     const totalMatches = matches.length;
-    const avgGoalsPerMatch = totalMatches > 0 
-      ? ((teamAGoals + teamBGoals) / totalMatches).toFixed(2) 
+    const avgGoalsPerMatch = totalMatches > 0
+      ? ((teamAGoals + teamBGoals) / totalMatches).toFixed(2)
       : "0.00";
 
     return res.json({
@@ -161,6 +153,95 @@ router.post("/", async (req, res) => {
 
   } catch (err) {
     console.error("Erreur route head-to-head:", err.message);
+    return res.status(500).json({ error: "Erreur serveur." });
+  }
+});
+
+
+// 🔍 NOUVELLE ROUTE DETAILLEE - scorers & duos par match
+router.post("/details", async (req, res) => {
+  const { teamA, teamB } = req.body;
+
+  if (!teamA || !teamB) {
+    return res.status(400).json({ error: "Les deux équipes doivent être fournies." });
+  }
+
+  const teamANormalized = normalizeTeamName(teamA);
+  const teamBNormalized = normalizeTeamName(teamB);
+
+  try {
+    const matches = await Match.find({
+      $or: [
+        {
+          homeTeam: { $regex: new RegExp(teamANormalized, 'i') },
+          awayTeam: { $regex: new RegExp(teamBNormalized, 'i') }
+        },
+        {
+          homeTeam: { $regex: new RegExp(teamBNormalized, 'i') },
+          awayTeam: { $regex: new RegExp(teamANormalized, 'i') }
+        }
+      ]
+    }).sort({ date: 1 });
+
+    if (!matches.length) {
+      return res.status(404).json({ message: "Aucune confrontation trouvée." });
+    }
+
+    const matchDetails = [];
+
+    for (const match of matches) {
+      const homeScore = match.homeScore ?? 0;
+      const awayScore = match.awayScore ?? 0;
+      const scorers = Array.isArray(match.scorers) ? match.scorers : [];
+
+      const participants = new Map();
+      const duoMap = {};
+
+      for (const s of scorers) {
+        const name = s?.name?.trim();
+        if (!name) continue;
+
+        const goals = s.goals ?? 0;
+        const assists = s.assists ?? 0;
+
+        participants.set(name, { goals, assists });
+      }
+
+      for (const [p1, stats1] of participants.entries()) {
+        if (stats1.goals > 0) {
+          for (const [p2, stats2] of participants.entries()) {
+            if (p1 !== p2 && stats2.assists > 0) {
+              const key = `${p1} + ${p2}`;
+              if (!duoMap[key]) duoMap[key] = 0;
+              duoMap[key] += Math.min(stats1.goals, stats2.assists);
+            }
+          }
+        }
+      }
+
+      const duos = Object.entries(duoMap).map(([duo, goalsTogether]) => ({
+        duo,
+        goalsTogether
+      }));
+
+      matchDetails.push({
+        date: match.date,
+        homeTeam: match.homeTeam,
+        awayTeam: match.awayTeam,
+        score: `${homeScore}-${awayScore}`,
+        scorers: scorers.map(s => ({
+          name: s.name,
+          goals: s.goals ?? 0,
+          assists: s.assists ?? 0
+        })),
+        duos
+      });
+    }
+
+    res.json({ matchDetails });
+
+  } catch (err) {
+    console.error("❌ ERREUR dans /details:", err);
     return res.status(500).json({ error: "Erreur serveur." });
   }
 });

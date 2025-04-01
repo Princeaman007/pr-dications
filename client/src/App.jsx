@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import UpcomingPredictions from "./pages/UpcomingPredictions";
 import HeadToHead from "./pages/HeadToHead";
 import AdvancedStats from "./pages/AdvancedStats";
+import MatchDetails from "./pages/MatchDetails";
 
 const App = () => {
   return (
@@ -20,6 +21,7 @@ const App = () => {
           <Route path="/head-to-head" element={<HeadToHead />} />
           <Route path="/head-to-head/:teamA/:teamB" element={<HeadToHead />} />
           <Route path="/advanced-stats" element={<AdvancedStats />} />
+          <Route path="/head-to-head/details/:teamA/:teamB" element={<MatchDetails />} />
         </Routes>
       </main>
 
