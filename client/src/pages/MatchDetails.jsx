@@ -311,6 +311,7 @@ const MatchDetails = () => {
               </Card>
             );
           })}
+          
         </div>
       )}
 
