@@ -1,8 +1,14 @@
 // fetchLastGamesForAllTeams.js
 const mongoose = require("mongoose");
 const { getLastFinalGames } = require("./nhlFetcher");
-require("dotenv").config();
+const path = require("path");
 
+require("dotenv").config({ path: path.resolve(__dirname, '..', '.env') });
+
+console.log("Vérification des variables d'environnement :");
+console.log("MONGO_URI:", process.env.MONGO_URI);
+console.log("Répertoire du script:", __dirname);
+console.log("Chemin vers .env recherché:", path.resolve(__dirname, '..', '.env'));
 
 
 // Liste des abréviations d'équipes NHL
@@ -47,8 +53,15 @@ const season = "20242025"; // Saison actuelle
 const gamesPerTeam = 15;    // 🔥 augmente le nombre de matchs traités
 const concurrentTeams = 4;  // Nombre d'équipes à traiter en parallèle
 
-// Connexion MongoDB avec gestion d'erreur
-mongoose.connect(process.env.MONGO_URI)
+// Utilisez directement la variable après vérification
+const mongoURI = process.env.MONGO_URI;
+if (!mongoURI) {
+  console.error("❌ La variable MONGO_URI n'est pas définie dans le fichier .env");
+  process.exit(1);
+}
+
+// Connexion MongoDB avec la variable vérifiée
+mongoose.connect(mongoURI)
   .then(() => console.log("✅ Connecté à MongoDB"))
   .catch(err => {
     console.error("❌ MongoDB error:", err.message);
