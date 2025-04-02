@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const { getLastFinalGames } = require("./nhlFetcher");
 require("dotenv").config();
 
+
+
 // Liste des abréviations d'équipes NHL
 const TEAMS = [
   "ANA", // Anaheim Ducks
