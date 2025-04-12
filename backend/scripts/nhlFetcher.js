@@ -46,35 +46,35 @@ const analyzeAPIResponse = async (teamAbbr, season) => {
   try {
     const url = `https://api-web.nhle.com/v1/club-schedule-season/${teamAbbr}/${season}`;
     console.log(`🔍 Analyse de l'API: ${url}`);
-    
+
     const response = await axios.get(url);
     const games = response.data?.games || [];
-    
+
     console.log(`📊 Nombre total de matchs reçus: ${games.length}`);
-    
+
     if (games.length > 0) {
       // Analyser les types de jeu et états de jeu
       const gameTypes = new Set();
       const gameStates = new Set();
-      
+
       games.forEach(g => {
         gameTypes.add(g.gameType);
         gameStates.add(g.gameState);
       });
-      
+
       console.log(`🏒 Types de jeu trouvés: ${[...gameTypes].join(', ')}`);
       console.log(`🚦 États de jeu trouvés: ${[...gameStates].join(', ')}`);
-      
+
       // Afficher les 5 derniers matchs pour analyse
       console.log(`\n📋 Détails des 5 derniers matchs:`);
       games.slice(-5).forEach((g, i) => {
-        console.log(`Match ${i+1}: ${g.gameDate} - Type: ${g.gameType} - État: ${g.gameState}`);
+        console.log(`Match ${i + 1}: ${g.gameDate} - Type: ${g.gameType} - État: ${g.gameState}`);
         console.log(`   ${g.awayTeam.placeName?.default} ${g.awayTeam.commonName?.default} @ ${g.homeTeam.placeName?.default} ${g.homeTeam.commonName?.default}`);
       });
     } else {
       console.log("❌ Aucun match trouvé dans la réponse de l'API.");
     }
-    
+
     return games;
   } catch (err) {
     console.error(`❌ Erreur lors de l'analyse de l'API: ${err.message}`);
@@ -88,30 +88,30 @@ const extractPlayerName = (player) => {
   if (typeof player.name === 'string') {
     return player.name;
   }
-  
+
   // Si le nom est un objet avec une propriété default
   if (typeof player.name === 'object' && player.name && player.name.default) {
     return player.name.default;
   }
-  
+
   // Si nous avons firstName et lastName comme objets
   if (player.firstName && player.lastName) {
-    if (typeof player.firstName === 'object' && player.firstName.default && 
-        typeof player.lastName === 'object' && player.lastName.default) {
+    if (typeof player.firstName === 'object' && player.firstName.default &&
+      typeof player.lastName === 'object' && player.lastName.default) {
       return `${player.firstName.default} ${player.lastName.default}`;
     }
-    
+
     // Si firstName et lastName sont des chaînes
     if (typeof player.firstName === 'string' && typeof player.lastName === 'string') {
       return `${player.firstName} ${player.lastName}`;
     }
   }
-  
+
   // Si nous avons un fullName
   if (typeof player.fullName === 'string') {
     return player.fullName;
   }
-  
+
   // Dernier recours, utiliser l'ID
   return `Joueur #${player.playerId || player.id || 'inconnu'}`;
 };
@@ -120,15 +120,15 @@ const extractPlayerName = (player) => {
 const extractScorersFromScoring = (scoring) => {
   try {
     const scorersMap = new Map(); // Utiliser une Map pour éviter les doublons
-    
+
     // Parcourir chaque période
     for (const period of scoring) {
       if (!period.goals || !Array.isArray(period.goals)) continue;
-      
+
       // Parcourir chaque but
       for (const goal of period.goals) {
         if (!goal.scoringPlayerId) continue;
-        
+
         // Récupérer les informations du buteur
         let scorerName = "";
         if (goal.firstName && goal.lastName) {
@@ -140,7 +140,7 @@ const extractScorersFromScoring = (scoring) => {
         } else {
           scorerName = `Joueur #${goal.scoringPlayerId}`;
         }
-        
+
         // Mise à jour du compteur pour ce joueur
         if (!scorersMap.has(goal.scoringPlayerId)) {
           scorersMap.set(goal.scoringPlayerId, {
@@ -152,12 +152,12 @@ const extractScorersFromScoring = (scoring) => {
           const scorer = scorersMap.get(goal.scoringPlayerId);
           scorer.goals += 1;
         }
-        
+
         // Ajouter les assistants
         if (goal.assists && Array.isArray(goal.assists)) {
           for (const assist of goal.assists) {
             if (!assist.playerId) continue;
-            
+
             let assistName = "";
             if (assist.firstName && assist.lastName) {
               if (typeof assist.firstName === 'object' && assist.firstName.default) {
@@ -168,7 +168,7 @@ const extractScorersFromScoring = (scoring) => {
             } else {
               assistName = `Joueur #${assist.playerId}`;
             }
-            
+
             if (!scorersMap.has(assist.playerId)) {
               scorersMap.set(assist.playerId, {
                 name: assistName,
@@ -183,7 +183,7 @@ const extractScorersFromScoring = (scoring) => {
         }
       }
     }
-    
+
     // Convertir la Map en array
     const scorers = Array.from(scorersMap.values());
     console.log(`✅ Trouvé ${scorers.length} marqueurs depuis scoring`);
@@ -198,35 +198,35 @@ const extractScorersFromScoring = (scoring) => {
 const extractScorersFromStats = (stats) => {
   try {
     if (!stats) return [];
-    
+
     const players = [];
-    
+
     // Collecter les joueurs de l'équipe à domicile
     if (stats.homeTeam) {
       if (Array.isArray(stats.homeTeam.forwards)) players.push(...stats.homeTeam.forwards);
       if (Array.isArray(stats.homeTeam.defense)) players.push(...stats.homeTeam.defense);
       if (Array.isArray(stats.homeTeam.goalies)) players.push(...stats.homeTeam.goalies);
     }
-    
+
     // Collecter les joueurs de l'équipe visiteuse
     if (stats.awayTeam) {
       if (Array.isArray(stats.awayTeam.forwards)) players.push(...stats.awayTeam.forwards);
       if (Array.isArray(stats.awayTeam.defense)) players.push(...stats.awayTeam.defense);
       if (Array.isArray(stats.awayTeam.goalies)) players.push(...stats.awayTeam.goalies);
     }
-    
+
     console.log(`👥 Nombre total de joueurs trouvés: ${players.length}`);
-    
+
     const scorers = [];
-    
+
     for (const player of players) {
       const goals = player.goals || 0;
       const assists = player.assists || 0;
-      
+
       if (goals > 0 || assists > 0) {
         // Extraire correctement le nom du joueur selon sa structure
         const playerName = extractPlayerName(player);
-        
+
         scorers.push({
           name: playerName,
           goals,
@@ -234,7 +234,7 @@ const extractScorersFromStats = (stats) => {
         });
       }
     }
-    
+
     console.log(`✅ Trouvé ${scorers.length} marqueurs depuis playerByGameStats`);
     return scorers;
   } catch (err) {
@@ -247,31 +247,31 @@ const extractScorersFromStats = (stats) => {
 const extractScorersFromPlayerBoxScore = (boxScore) => {
   try {
     const scorers = [];
-    
+
     // Vérifier si nous avons des joueurs
     if (!boxScore.homeTeam || !boxScore.awayTeam) return [];
-    
+
     const homeTeamPlayers = [
       ...(boxScore.homeTeam.forwards || []),
       ...(boxScore.homeTeam.defense || []),
       ...(boxScore.homeTeam.goalies || [])
     ];
-    
+
     const awayTeamPlayers = [
       ...(boxScore.awayTeam.forwards || []),
       ...(boxScore.awayTeam.defense || []),
       ...(boxScore.awayTeam.goalies || [])
     ];
-    
+
     const allPlayers = [...homeTeamPlayers, ...awayTeamPlayers];
-    
+
     for (const player of allPlayers) {
       const goals = player.goals || 0;
       const assists = player.assists || 0;
-      
+
       if (goals > 0 || assists > 0) {
         let playerName = extractPlayerName(player);
-        
+
         scorers.push({
           name: playerName,
           goals,
@@ -279,7 +279,7 @@ const extractScorersFromPlayerBoxScore = (boxScore) => {
         });
       }
     }
-    
+
     console.log(`✅ Trouvé ${scorers.length} marqueurs depuis playerBoxScore`);
     return scorers;
   } catch (err) {
@@ -292,14 +292,14 @@ const extractScorersFromPlayerBoxScore = (boxScore) => {
 const extractScorersFromPlayersArray = (players) => {
   try {
     const scorers = [];
-    
+
     for (const player of players) {
       const goals = player.goals || player.stat?.goals || 0;
       const assists = player.assists || player.stat?.assists || 0;
-      
+
       if (goals > 0 || assists > 0) {
         let playerName = extractPlayerName(player);
-        
+
         scorers.push({
           name: playerName,
           goals,
@@ -307,7 +307,7 @@ const extractScorersFromPlayersArray = (players) => {
         });
       }
     }
-    
+
     console.log(`✅ Trouvé ${scorers.length} marqueurs depuis tableau de joueurs`);
     return scorers;
   } catch (err) {
@@ -321,16 +321,16 @@ const getBoxscore = async (gameId) => {
   try {
     const url = `https://api-web.nhle.com/v1/gamecenter/${gameId}/boxscore`;
     const res = await axios.get(url);
-    
+
     // Vérifier la structure pour s'assurer que nous accédons aux bonnes propriétés
     if (res.data.homeTeam && typeof res.data.homeTeam.score === 'number' &&
-        res.data.awayTeam && typeof res.data.awayTeam.score === 'number') {
+      res.data.awayTeam && typeof res.data.awayTeam.score === 'number') {
       return {
         homeScore: res.data.homeTeam.score,
         awayScore: res.data.awayTeam.score
       };
     }
-    
+
     // Essayer une structure alternative
     if (res.data.linescore && res.data.linescore.teams) {
       return {
@@ -338,7 +338,7 @@ const getBoxscore = async (gameId) => {
         awayScore: res.data.linescore.teams.away.goals || 0
       };
     }
-    
+
     // Si aucune structure valide n'est trouvée
     console.warn(`⚠️ Structure de score non standard pour ${gameId}`);
     return { homeScore: 0, awayScore: 0 };
@@ -353,36 +353,36 @@ const getScorersFromGame = async (gameId) => {
   try {
     const url = `https://api-web.nhle.com/v1/gamecenter/${gameId}/boxscore`;
     console.log(`📡 Requête boxscore pour le match ${gameId}`);
-    
+
     const response = await axios.get(url);
-    
+
     // Vérifier différentes structures de données disponibles
     if (response.data.scoring && Array.isArray(response.data.scoring)) {
       console.log("✅ Structure scoring trouvée");
       return extractScorersFromScoring(response.data.scoring);
     }
-    
+
     if (response.data.playerByGameStats) {
       console.log("✅ Structure playerByGameStats trouvée");
       return extractScorersFromStats(response.data.playerByGameStats);
     }
-    
+
     if (response.data.playerBoxScore) {
       console.log("✅ Structure playerBoxScore trouvée");
       return extractScorersFromPlayerBoxScore(response.data.playerBoxScore);
     }
-    
+
     if (response.data.homeTeam && response.data.homeTeam.players) {
       console.log("✅ Structure homeTeam.players trouvée");
-      
+
       const players = [
         ...(response.data.homeTeam.players || []),
         ...(response.data.awayTeam?.players || [])
       ];
-      
+
       return extractScorersFromPlayersArray(players);
     }
-    
+
     console.log("⚠️ Aucune structure connue trouvée pour les marqueurs");
     return [];
   } catch (err) {
@@ -416,14 +416,10 @@ const getLastFinalGames = async (teamAbbr, season = "20242025", limit = 5) => {
 
       console.log(`🏒 ${awayTeam} @ ${homeTeam} (${game.id})`);
 
-      const exists = await Match.findOne({
-        date: game.gameDate.substring(0, 10),
-        homeTeam,
-        awayTeam
-      });
+      const exists = await Match.findOne({ gameId: game.id.toString() });
 
       if (exists) {
-        console.log(`⚠️ Match ${homeTeam} vs ${awayTeam} déjà existant.`);
+        console.log(`⚠️ Match ${awayTeam} @ ${homeTeam} (ID: ${game.id}) déjà existant.`);
         return;
       }
 
