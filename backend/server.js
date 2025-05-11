@@ -10,6 +10,9 @@ const headToHeadRoutes = require("./routes/headToHeadRoutes"); // ✅ Nouvelle r
 const confrontationsRoutes = require("./routes/confrontationsRoutes");
 const scorersRoutes = require("./routes/scorersRoutes");
 const upcomingPredictionsRoutes = require("./routes/upcomingPredictionsRoutes");
+const teamDuosRoutes = require("./routes/teamDuosRoutes");
+const teamQuartetsRoutes = require("./routes/teamQuartetsRoutes");
+const teamTriosRoutes = require("./routes/teamTriosRoutes");
 
 
 
@@ -20,6 +23,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 
 // Logs en développement
 if (process.env.NODE_ENV === "development") {
@@ -52,7 +56,9 @@ app.use("/api/confrontations", confrontationsRoutes);
 app.use("/api/scorers", scorersRoutes);
 app.use("/api/upcoming-predictions", require("./routes/upcomingPredictionsRoutes"));
 app.use("/api/teams", require("./routes/teamRoutes"));
-
+app.use("/api/team-duos", teamDuosRoutes);
+app.use("/api/team-quartets", teamQuartetsRoutes);
+app.use("/api/team-trios", teamTriosRoutes);
 
 
 
