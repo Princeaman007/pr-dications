@@ -8,6 +8,9 @@ import UpcomingPredictions from "./pages/UpcomingPredictions";
 import HeadToHead from "./pages/HeadToHead";
 import AdvancedStats from "./pages/AdvancedStats";
 import MatchDetails from "./pages/MatchDetails";
+import TeamDuos from "./pages/TeamDuos";
+import TeamQuartets from "./pages/TeamQuartets";
+import TeamTrios from "./pages/TeamTrios";
 
 const App = () => {
   return (
@@ -22,6 +25,9 @@ const App = () => {
           <Route path="/head-to-head/:teamA/:teamB" element={<HeadToHead />} />
           <Route path="/advanced-stats" element={<AdvancedStats />} />
           <Route path="/head-to-head/details/:teamA/:teamB" element={<MatchDetails />} />
+          <Route path="/team-duos" element={<TeamDuos />} />
+          <Route path="/team-quartets" element={<TeamQuartets />} />
+          <Route path="/team-trios" element={<TeamTrios />} />
         </Routes>
       </main>
 

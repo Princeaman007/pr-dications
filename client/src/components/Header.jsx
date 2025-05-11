@@ -35,6 +35,27 @@ const Header = () => {
             >
               Stats avancées
             </Nav.Link>
+            <Nav.Link
+              as={Link}
+              to="/team-duos"
+              active={location.pathname === "/team-duos"}
+            >
+              Duos par équipe
+            </Nav.Link>
+            <Nav.Link
+              as={Link}
+              to="/team-trios"
+              active={location.pathname === "/team-trios"}
+            >
+              Trios offensifs
+            </Nav.Link>
+            <Nav.Link
+              as={Link}
+              to="/team-quartets"
+              active={location.pathname === "/team-quartets"}
+            >
+              Quatuors offensifs
+            </Nav.Link>
           </Nav>
         </Navbar.Collapse>
       </Container>
